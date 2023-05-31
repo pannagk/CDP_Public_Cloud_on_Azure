@@ -1,0 +1,205 @@
+= CDP Public Cloud Environment Setup on Azure
+
+Author: *Pannag Katti*
+
+
+
+
+:page-layout: docs
+:description: CDP Public Cloud on Azure
+:imagesdir: ./images
+:icons: font
+:toc:
+:toc-placement!:
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+
+toc::[]
+
+This document provides all the required information for Cloudera Partners to setup a CDP Environment on Public Cloud. In addition to exploring different Data Services that run on containerized environment, this setup can also be used for any solution validation, certification, getting a Hands-on experience, or for any demos with potential customers. Here, you will get all the details for a quick-setup of a CDP environment on CDP Public Cloud with *Microsoft Azure* as the provider for all the cloud resources. 
+
+
+== Prerequisites
+
+==== Access to a CDP tenant with PowerUser access
+
+==== Owner permissions on the Azure subscription that you would like to use for CDP
+
+==== Docker
+
+Install Docker on your system and ensure that it is running. 
+
+===== https://docs.docker.com/desktop/install/mac-install/[Mac]
+
+===== https://docs.docker.com/desktop/install/windows-install/[Windows]
+
+==== SSH-key pair (Have the public key handy during the setup)
+
+You can create this from Azure with the steps mentioned https://learn.microsoft.com/en-us/azure/virtual-machines/ssh-keys-portal[here] or you can use the ssh-keygen utility. 
+
+==== CDP access key and private key
+
+* On the CDP Portal, click at the left bottom corner and click on Profile as shown below. 
+
+image::profile.png[profile,180,200]
+
+image::profile_1.png[profile1,290,220]
+
+* Click on Generate Access Key as shown below. 
+
+image::gen_access_key.png[access_key,900,200]
+
+* Copy the values of Access Key ID and Secret Key separately. 
+
+image::gen_access_key_1.png[access_key1,450,300]
+
+== Azure Resources
+
+The list below contains the details of VMs and Database created in Azure during CDP environment setup. For the full list of all the Azure resources, please refer to this https://docs.cloudera.com/cdp-public-cloud/cloud/requirements-azure/topics/mc-azure-resoucres.html[article].
+
+* Virtual Machines (VMs): 
+
+** During environment creation, two or three *Standard_DS3_v2* VMs are provisioned for the FreeIPA HA server by default. The number of VMs depends on the selected Data Lake type. Please ensure you have this size available in the region where you are planning to deploy CDP. 
+
+** For Light duty Data Lake, two instances are provisioned: One Standard_D8s_v3 instance (Data Lake Master node) and one Standard_D2s_v3 instance (IDBroker).
+
+* Database : 
+** Azure Database for PostgreSQL server: A database instance MO_Gen5_4, 100 GB (General Purpose, Gen5, 4 vCore & 100GB Storage) is provisioned for Cloudera Manager, Ranger, and Hive MetaStore.
+
+
+
+
+== Machine Setup 
+
+=== Container setup
+
+* With the Docker(Docker Desktop) application running, 
+** Open the *CMD Prompt* if you are on Windows.
+** Open the *Terminal* or *iTerm* if you are on Mac. 
+
+* Run the below command to download the docker image. This might take a while. 
+
+[.shell]
+----
+docker pull mcr.microsoft.com/azure-cloudshell:latest
+----
+
+* Run the container and exec into it with the below command. 
+
+[.shell]
+----
+docker run -it mcr.microsoft.com/azure-cloudshell /bin/bash
+----
+
+* Download the necessary resources in the container with the below command. 
+
+[.shell]
+----
+git clone https://github.com/pannagk/CDP_Public_Cloud_on_Azure.git
+----
+
+* Run the below commands to add execute permissions to the shell script files. 
+
+[.shell]
+----
+cd CDP_Public_Cloud_on_Azure
+chmod +x *.sh
+rm -rf images Readme.adoc
+----
+
+* Copy the ssh public key generated earlier, to the *CDP_Public_Cloud_on_Azure* folder. Create a file with the below command and copy the public key content. 
+
+WARNING: While copying the public key content, ensure that you copy it without any leading/trailing spaces. 
+
+[.shell]
+----
+vi cdp_demo_azure_rsa.pub
+----
+WARNING: The public key file name must be *cdp_demo_azure_rsa.pub*. If it is different, rename it to cdp_demo_azure_rsa.pub. 
+
+* Open the setup_params.sh file and update the below values. 
+
+[.shell]
+----
+vi setup_params.sh
+----
+
+   1. sub_id="Enter your Azure Subscription ID with owner access here"
+   2. prefix="Enter a simple lowercase & alphabet only prefix for identifying resources" (example:- cdppoc)
+   3. cdp_run_time="Enter CDP Runtime version" (7.2.16 is the latest. You can check with your Cloudera POC to verify this. )
+   4. ssh_public_key=`cat ./cdp_demo_azure_rsa.pub`
+   5. cdp_access_key_id="Enter the CDP access key id here"
+   6. cdp_private_key="Enter the CDP private key here"
+
+NOTE: If you have created the ssh public key with the name cdp_demo_azure_rsa.pub, then you need not modify anything at the ssh-public-key part. Otherwise, replace the filename with the name you have given to the public key. 
+
+TIP: For example, if the public key in your case is cdp_azure_rsa.pub, then the ssh_public_key assignment line in setup_params.sh file looks as below. 
+
+[.shell]
+----
+ssh_public_key=`cat ./cdp_azure_rsa.pub`
+----
+
+NOTE: Please note that the public key should be inside the *CDP_Public_Cloud_on_Azure* folder. 
+
+* Verify that you have these six files in the folder CDP_Public_Cloud_on_Azure. 
+
+image::files_1.png[files,280,160]
+
+TIP: The file *cdp_setup_azure.sh.x* is executable. Do not rename/modify it. 
+
+
+* Once this is done, you will now need to authenticate to Azure. 
+
+== Azure Login
+
+* Run the below command which will provide a url and a passcode. Open the url in a browser, it will ask for a code. Copy the code from the terminal and enter that in the prompt. 
+[.shell]
+----
+az login
+----
+
+* Click on Continue in the next prompt as shown below. 
+
+* You should get a confirmation for sign-in to the CLI as shown below. Once you get this prompt, close the browser and go back to the terminal. 
+
+* *If you have MFA enabled for your subscription*, then you would need to explicitly mention the tenant id for logging in. Replace TENANT_ID with your tenant id and run the below command. Follow the on-screen isntructions and enter the code in the authentication app. 
+[.shell]
+----
+az login --tenant TENANT_ID
+----
+
+* Once authenticated successfully, you will see a list of subscriptions you have access to as the output. You would have entered one of these subscription_id values in setup_params.sh file. 
+
+== POINTS TO NOTE
+
+* The setup script executes the required steps for creation of CDP Environment in a sequence and you can see the output for each step. You can keep monitoring the logs of the script. If you encounter any error, take the screenshot or copy the error message and share it with the Cloudera POC you are working with. 
+
+* Please don’t stop the Docker process or close the terminal. 
+
+* Some of the Azure resources created as part of CDP setup assume default values. These values are listed below. 
+** Azure Resource Group Region: East US
+** Azure Vnet CIDR: 10.10.0.0/16
+** Azure Subnets:
+*** Subnet1: 10.10.0.0/19
+*** Subnet2: 10.10.32.0/19
+*** Subnet3: 10.10.64.0/19
+
+* The above values are hardcoded in the *cdp_setup_azure_rm_main.json* file. If you feel the need to modify these values, you can update those in this file appropriately or please reach out to the Cloudera PSE team (pse-intl@cloudera.com). 
+
+== RUNNING THE SCRIPT
+
+* Run the script and provide the necessary details asked during the script run. Please note that this is an executable script and the extra x at the end in the script name is not a typo. 
+[.shell]
+----
+./cdp_setup_azure.sh.x
+----
+
+* The script execution is considered successful if you see a message similar to the one shown below with your environment name. 
+
+image::success.png[success,700,160]
+
+
